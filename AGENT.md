@@ -1,42 +1,48 @@
-# github-skill
+# Skills Agent
 
-## 定位
+本仓库包含两个独立 Skill，通过对话驱动，所有操作落地为 shell/Python 脚本。
 
-通过**对话**协助用户完成 GitHub 仓库管理操作。  
-用户说人话，Agent 解析意图，调用 `skill/scripts/` 下对应的 shell 脚本执行，返回结果。  
-**不使用浏览器、不使用 E2E 工具**——所有操作通过 `git` + GitHub REST API（curl）完成。
+---
 
-## 快速参考
+## github-skill
 
-| 用户说 | 调用脚本 |
-|--------|---------|
-| 帮我创建一个仓库 | `gh_create.sh` |
-| 帮我 clone 这个项目 | `gh_clone.sh` |
-| 推送代码 / 提交代码 | `gh_push.sh` |
-| 拉取最新代码 | `gh_pull.sh` |
-| 同步代码 / 保持同步 | `gh_sync.sh` |
-| 查看状态 / 有什么改动 | `gh_status.sh` |
-| 我有哪些仓库 | `gh_list.sh` |
-| 创建/切换/列出分支 | `gh_branch.sh` |
-| 提 PR / 查看 PR | `gh_pr.sh` |
-| 配置 Token | `gh_auth.sh` |
+GitHub 仓库管理助手，通过对话完成常见 GitHub 操作。
 
-## 执行规范
+| 说什么 | 脚本 |
+|--------|------|
+| 创建仓库 | `github-skill/scripts/gh_create.sh` |
+| clone 项目 | `github-skill/scripts/gh_clone.sh` |
+| 推送代码 | `github-skill/scripts/gh_push.sh` |
+| 拉取更新 | `github-skill/scripts/gh_pull.sh` |
+| 双向同步 | `github-skill/scripts/gh_sync.sh` |
+| 查看状态 | `github-skill/scripts/gh_status.sh` |
+| 列出仓库 | `github-skill/scripts/gh_list.sh` |
+| 分支管理 | `github-skill/scripts/gh_branch.sh` |
+| PR 管理 | `github-skill/scripts/gh_pr.sh` |
+| 配置 Token | `github-skill/scripts/gh_auth.sh` |
 
-1. **前置检查**：每次调用先确认 `~/.github_skill_token` 或 `GITHUB_TOKEN` 已配置
-2. **参数确认**：必填参数缺失时询问用户，不要猜测或使用占位符
-3. **脚本调用**：从项目根执行 `bash skill/scripts/<script>.sh [参数]`
-4. **结果反馈**：将脚本输出解读后用中文告知用户，错误时给出建议
+**前置**：`GITHUB_TOKEN` 或 `~/.github_skill_token`
+
+---
+
+## html-publish
+
+HTML 一键发布工具：内联 CSS/JS → 发布到公网 → 返回 URL。
+
+| 步骤 | 脚本 |
+|------|------|
+| 内联 CSS/JS（压缩）| `html-publish/scripts/html_bundle.py` |
+| 发布（自动选方案）| `html-publish/scripts/html_publish.sh` |
+| Plan A：GitHub Pages | `html-publish/scripts/html_ghpages.sh` |
+| Plan B：Litterbox | `html-publish/scripts/html_gist.sh` |
+| 自验证 | `html-publish/scripts/html_selftest.sh` |
+
+**发布方案**：
+- Plan A（永久）：GitHub Pages，需要 `GITHUB_TOKEN`（repo 权限）
+- Plan B（72h）：Litterbox (catbox.moe)，零认证纯 curl
+
+---
 
 ## 迭代规则
 
-功能变更时同步更新 `skill/SKILL.md`、`skill/scripts/`、`AGENT.md`。
-
-## 环境变量
-
-| 变量 | 用途 |
-|------|------|
-| `GITHUB_TOKEN` | GitHub PAT（repo + read:user 权限）|
-| `GITHUB_USER` | 默认用户名（可选）|
-
-Token 也可保存在 `~/.github_skill_token`（由 `gh_auth.sh --token` 写入，权限 600）。
+功能变更时同步更新对应 Skill 的 `SKILL.md`、`scripts/`、本文件。

@@ -1,44 +1,57 @@
-# github-skill
+# skills
 
-通过对话协助完成 GitHub 仓库管理操作，无需记忆 git 命令。
+对话驱动的开发工具集，所有操作落地为 shell/Python 脚本，无浏览器、无 E2E。
 
-## 能力
+---
 
-| 说什么 | 做什么 |
-|--------|--------|
-| 帮我创建一个仓库 | 调用 GitHub API 新建仓库 |
-| 帮我 clone xxx/yyy | 克隆到本地 |
-| 推送代码，消息是 fix bug | add + commit + push |
-| 拉取最新代码 | git pull |
-| 双向同步 | pull + push |
-| 查看状态 | git status + GitHub 仓库信息 |
-| 我有哪些仓库 | 列出用户所有仓库 |
-| 新建 feature/login 分支 | 创建并切换分支 |
-| 提一个 PR | 通过 API 创建 Pull Request |
+## github-skill
 
-## 快速开始
+通过对话协助完成 GitHub 仓库管理，无需记忆 git 命令。
 
 ```bash
-# 1. 配置 GitHub Token（需要 repo + read:user 权限）
-bash skill/scripts/gh_auth.sh --token ghp_your_token
+# 配置 Token（repo + read:user 权限）
+bash github-skill/scripts/gh_auth.sh --token ghp_xxx
 
-# 2. 开始对话，让 Claude 帮你操作
+# 然后直接告诉 Claude 你想做什么：
+# "帮我创建一个私有仓库 my-project"
+# "把当前代码推上去，消息是 fix login bug"
+# "克隆 facebook/react 到本地"
 ```
 
-## 脚本说明
+| 能力 | 脚本 |
+|------|------|
+| 创建仓库 | `gh_create.sh` |
+| 克隆仓库 | `gh_clone.sh` |
+| 提交推送 | `gh_push.sh` |
+| 拉取更新 | `gh_pull.sh` |
+| 双向同步 | `gh_sync.sh` |
+| 查看状态 | `gh_status.sh` |
+| 列出仓库 | `gh_list.sh` |
+| 分支管理 | `gh_branch.sh` |
+| PR 管理 | `gh_pr.sh` |
 
-```
-skill/scripts/
-├── gh_auth.sh      配置 / 验证 Token
-├── gh_create.sh    创建仓库
-├── gh_clone.sh     克隆仓库
-├── gh_push.sh      提交并推送
-├── gh_pull.sh      拉取更新
-├── gh_sync.sh      双向同步
-├── gh_status.sh    查看状态
-├── gh_list.sh      列出仓库
-├── gh_branch.sh    分支管理
-└── gh_pr.sh        PR 管理
+---
+
+## html-publish
+
+将本地 HTML（含外部 CSS/JS）打包成单文件并发布到公网，返回可访问 URL。
+
+```bash
+# 发布（自动内联 CSS/JS，自动选方案）
+bash html-publish/scripts/html_publish.sh ./your-page.html
+
+# 强制用 Plan B（Litterbox，零认证）
+bash html-publish/scripts/html_publish.sh ./your-page.html --plan b
+
+# 自验证
+bash html-publish/scripts/html_selftest.sh
 ```
 
-依赖：`bash` `git` `curl`，无需安装其他工具。
+| 方案 | 说明 |
+|------|------|
+| Plan A：GitHub Pages | 永久，需要 `GITHUB_TOKEN` |
+| Plan B：Litterbox | 72h，零认证纯 curl |
+
+---
+
+依赖：`bash` `git` `curl` `python3`（均为系统自带）
