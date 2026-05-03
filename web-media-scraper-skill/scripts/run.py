@@ -47,9 +47,9 @@ def main():
 
     parser.add_argument(
         "--method",
-        choices=["playwright", "selenium"],
+        choices=["playwright", "selenium", "cdp"],
         default="playwright",
-        help="抓取方法（默认: playwright）"
+        help="抓取方法（默认: playwright, cdp=直接操作已打开浏览器页面，绕过 Cloudflare）"
     )
 
     parser.add_argument(
@@ -87,9 +87,9 @@ def main():
     scraper = MediaScraper(timeout=args.timeout, headless=args.headless)
 
     try:
-        if args.method == "playwright":
+        if args.method in ("playwright", "cdp"):
             # 异步执行
-            result = asyncio.run(scraper.scrape(args.url, method="playwright"))
+            result = asyncio.run(scraper.scrape(args.url, method=args.method))
         else:
             # 同步执行
             result = scraper.scrape(args.url, method="selenium")

@@ -3,6 +3,7 @@ Web Media Scraper - 核心爬虫模块
 使用无头浏览器抓取页面中的所有图片和视频资源
 """
 
+import asyncio
 import json
 import sys
 from datetime import datetime
@@ -41,6 +42,134 @@ class MediaScraper:
         self.browser = None
         self.page = None
 
+    async def _scrape_via_cdp_existing_page(self, url: str) -> Dict:
+        """
+        通过 CDP 直接操作已有页面（绕过 Cloudflare 等反爬验证）
+
+        连接到 localhost:9222，找到已加载目标 URL 的页面，
+        直接通过 CDP 执行 JavaScript 提取媒体资源。
+        """
+        import websockets
+        import json as _json
+
+        # 1. 获取 CDP 目标列表
+        import urllib.request
+        req = urllib.request.urlopen("http://localhost:9222/json")
+        targets = _json.loads(req.read().decode())
+
+        # 2. 查找匹配的页面
+        target_info = None
+        for t in targets:
+            t_url = t.get("url", "")
+            if url in t_url:
+                target_info = t
+                break
+
+        if not target_info:
+            raise RuntimeError(f"CDP 中未找到匹配 {url} 的页面")
+
+        ws_url = target_info["webSocketDebuggerUrl"]
+        page_title = target_info.get("title", "")
+
+        # 3. 通过 WebSocket 连接 CDP 并执行 JS
+        async with websockets.connect(ws_url) as ws:
+            cmd_id = 1
+
+            async def send_cmd(method: str, params: dict = None) -> dict:
+                nonlocal cmd_id
+                msg = {"id": cmd_id, "method": method, "params": params or {}}
+                cmd_id += 1
+                await ws.send(_json.dumps(msg))
+                while True:
+                    resp = _json.loads(await ws.recv())
+                    if resp.get("id") == msg["id"]:
+                        if "error" in resp:
+                            raise RuntimeError(f"CDP error: {resp['error']}")
+                        return resp.get("result", {})
+
+            # 启用 Runtime 域
+            await send_cmd("Runtime.enable")
+
+            # 4. 提取图片
+            result = await send_cmd("Runtime.evaluate", {
+                "expression": """
+                (() => {
+                    const results = [];
+                    document.querySelectorAll('img').forEach(img => {
+                        if (img.src) results.push({src: img.src, alt: img.alt||'', title: img.title||''});
+                    });
+                    document.querySelectorAll('picture source').forEach(source => {
+                        const srcset = source.srcset;
+                        if (srcset) {
+                            const firstUrl = srcset.split(',')[0].split(' ')[0].trim();
+                            if (firstUrl) results.push({src: firstUrl, alt: '', title: ''});
+                        }
+                    });
+                    return results;
+                })()
+                """,
+                "returnByValue": True
+            })
+            img_data = result.get("result", {}).get("value", [])
+
+            # 5. 提取视频
+            result = await send_cmd("Runtime.evaluate", {
+                "expression": """
+                (() => {
+                    const results = [];
+                    document.querySelectorAll('video').forEach(video => {
+                        if (video.src) results.push({src: video.src, type: 'video/mp4', title: video.title||''});
+                        video.querySelectorAll('source').forEach(source => {
+                            if (source.src) results.push({src: source.src, type: source.type||'video/mp4', title: ''});
+                        });
+                    });
+                    document.querySelectorAll('iframe').forEach(iframe => {
+                        const src = iframe.src;
+                        if (src && (src.includes('youtube')||src.includes('youtu.be')||src.includes('vimeo'))) {
+                            results.push({src: src, type: 'iframe', title: ''});
+                        }
+                    });
+                    return results;
+                })()
+                """,
+                "returnByValue": True
+            })
+            video_data = result.get("result", {}).get("value", [])
+
+        # 6. 组装结果
+        seen = set()
+        images = []
+        for img in img_data:
+            src = img.get("src", "")
+            if src and src not in seen:
+                seen.add(src)
+                images.append({
+                    "src": urljoin(url, src),
+                    "alt": img.get("alt", ""),
+                    "title": img.get("title", "")
+                })
+
+        seen.clear()
+        videos = []
+        for vid in video_data:
+            src = vid.get("src", "")
+            if src and src not in seen:
+                seen.add(src)
+                videos.append({
+                    "src": urljoin(url, src),
+                    "type": vid.get("type", "video/mp4"),
+                    "title": vid.get("title", "")
+                })
+
+        return {
+            "url": url,
+            "title": page_title,
+            "images": images,
+            "videos": videos,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "scraper": "cdp-direct"
+        }
+
     async def scrape_with_playwright(self, url: str, browser_type: str = "chromium") -> Dict:
         """
         使用 Playwright 抓取媒体资源
@@ -67,7 +196,7 @@ class MediaScraper:
 
             try:
                 page = await browser.new_page()
-                await page.goto(url, wait_until="networkidle", timeout=self.timeout)
+                await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout)
 
                 # 等待 JS 执行完成
                 await page.wait_for_timeout(1000)
@@ -353,12 +482,17 @@ class MediaScraper:
 
         Args:
             url: 目标 URL
-            method: 抓取方法（playwright 或 selenium）
+            method: 抓取方法（playwright、cdp 或 selenium）
+              - cdp: 优先通过 CDP 操作已有页面（绕过 Cloudflare）
+              - playwright: 使用 Playwright 启动浏览器
+              - selenium: 使用 Selenium
 
         Returns:
             媒体资源数据字典
         """
-        if method == "playwright":
+        if method == "cdp":
+            return await self._scrape_via_cdp_existing_page(url)
+        elif method == "playwright":
             return await self.scrape_with_playwright(url)
         elif method == "selenium":
             return self.scrape_with_selenium(url)
