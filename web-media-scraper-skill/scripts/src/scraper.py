@@ -97,44 +97,65 @@ class MediaScraper:
         """提取页面中的所有图片"""
         images = []
 
-        # 提取 <img> 标签
-        img_elements = await page.locators("img").all()
-        for elem in img_elements:
-            try:
-                src = await elem.get_attribute("src")
-                alt = await elem.get_attribute("alt")
-                title = await elem.get_attribute("title")
+        # 使用 JavaScript 直接提取所有图片信息（兼容性更好）
+        img_data = await page.evaluate("""
+            () => {
+                const images = [];
+                document.querySelectorAll('img').forEach(img => {
+                    if (img.src) {
+                        images.push({
+                            src: img.src,
+                            alt: img.alt || '',
+                            title: img.title || ''
+                        });
+                    }
+                });
+                return images;
+            }
+        """)
 
+        for img in img_data:
+            try:
+                src = img.get("src", "")
                 if src:
                     # 转换相对路径为绝对路径
                     absolute_url = urljoin(base_url, src)
                     images.append({
                         "src": absolute_url,
-                        "alt": alt or "",
-                        "title": title or ""
+                        "alt": img.get("alt", ""),
+                        "title": img.get("title", "")
                     })
             except:
                 continue
 
         # 提取 <picture> 标签中的 <source>
-        picture_sources = await page.locators("picture source").all()
-        for elem in picture_sources:
-            try:
-                srcset = await elem.get_attribute("srcset")
-                if srcset:
-                    # srcset 可能包含多个 URL，取第一个
-                    first_url = srcset.split(",")[0].split()[0].strip()
-                    absolute_url = urljoin(base_url, first_url)
+        try:
+            picture_data = await page.evaluate("""
+                () => {
+                    const sources = [];
+                    document.querySelectorAll('picture source').forEach(source => {
+                        const srcset = source.srcset;
+                        if (srcset) {
+                            const firstUrl = srcset.split(',')[0].split(' ')[0].trim();
+                            if (firstUrl) {
+                                sources.push(firstUrl);
+                            }
+                        }
+                    });
+                    return sources;
+                }
+            """)
+
+            for src in picture_data:
+                if src:
+                    absolute_url = urljoin(base_url, src)
                     images.append({
                         "src": absolute_url,
                         "alt": "",
                         "title": ""
                     })
-            except:
-                continue
-
-        # 提取 CSS 背景图片（可选，较为复杂）
-        # 这里简化处理，暂不实现
+        except:
+            pass
 
         # 去重
         seen = set()
@@ -150,49 +171,74 @@ class MediaScraper:
         """提取页面中的所有视频"""
         videos = []
 
-        # 提取 <video> 标签
-        video_elements = await page.locators("video").all()
-        for elem in video_elements:
-            try:
-                # 尝试获取 src 属性
-                src = await elem.get_attribute("src")
-                if src:
-                    absolute_url = urljoin(base_url, src)
-                    title = await elem.get_attribute("title") or ""
-                    videos.append({
-                        "src": absolute_url,
-                        "type": "video/mp4",  # 简化，可从扩展名推断
-                        "title": title
-                    })
+        # 使用 JavaScript 提取视频标签信息
+        try:
+            video_data = await page.evaluate("""
+                () => {
+                    const videos = [];
+                    document.querySelectorAll('video').forEach(video => {
+                        // 提取 video 标签上的 src
+                        if (video.src) {
+                            videos.push({
+                                src: video.src,
+                                type: 'video/mp4',
+                                title: video.title || ''
+                            });
+                        }
+                        // 提取 source 子元素
+                        video.querySelectorAll('source').forEach(source => {
+                            if (source.src) {
+                                videos.push({
+                                    src: source.src,
+                                    type: source.type || 'video/mp4',
+                                    title: ''
+                                });
+                            }
+                        });
+                    });
+                    return videos;
+                }
+            """)
 
-                # 尝试获取 <source> 子元素
-                sources = await elem.locator("source").all()
-                for source in sources:
-                    src = await source.get_attribute("src")
-                    type_attr = await source.get_attribute("type")
+            for vid in video_data:
+                try:
+                    src = vid.get("src", "")
                     if src:
                         absolute_url = urljoin(base_url, src)
                         videos.append({
                             "src": absolute_url,
-                            "type": type_attr or "video/mp4",
-                            "title": ""
+                            "type": vid.get("type", "video/mp4"),
+                            "title": vid.get("title", "")
                         })
-            except:
-                continue
+                except:
+                    continue
+        except:
+            pass
 
-        # 提取 iframe 中的视频链接（简化版，仅识别 YouTube/Vimeo）
-        iframes = await page.locators("iframe").all()
-        for iframe in iframes:
-            try:
-                src = await iframe.get_attribute("src")
-                if src and any(domain in src for domain in ["youtube.com", "youtu.be", "vimeo.com"]):
+        # 提取 iframe 中的视频链接（YouTube/Vimeo 等）
+        try:
+            iframe_data = await page.evaluate("""
+                () => {
+                    const iframes = [];
+                    document.querySelectorAll('iframe').forEach(iframe => {
+                        const src = iframe.src;
+                        if (src && (src.includes('youtube') || src.includes('youtu.be') || src.includes('vimeo'))) {
+                            iframes.push(src);
+                        }
+                    });
+                    return iframes;
+                }
+            """)
+
+            for src in iframe_data:
+                if src:
                     videos.append({
                         "src": src,
                         "type": "iframe",
                         "title": ""
                     })
-            except:
-                continue
+        except:
+            pass
 
         # 去重
         seen = set()
