@@ -60,6 +60,19 @@ def main():
     )
 
     parser.add_argument(
+        "--wait",
+        type=int,
+        default=5,
+        help="页面 ready 后等待动态内容加载的秒数（默认: 5）"
+    )
+
+    parser.add_argument(
+        "--download-dir",
+        default=None,
+        help="媒体文件下载目录（默认: 不下载）"
+    )
+
+    parser.add_argument(
         "--headless",
         action="store_true",
         default=True,
@@ -89,7 +102,7 @@ def main():
     try:
         if args.method in ("playwright", "cdp"):
             # 异步执行
-            result = asyncio.run(scraper.scrape(args.url, method=args.method))
+            result = asyncio.run(scraper.scrape(args.url, method=args.method, wait_seconds=args.wait, download_dir=args.download_dir))
         else:
             # 同步执行
             result = scraper.scrape(args.url, method="selenium")

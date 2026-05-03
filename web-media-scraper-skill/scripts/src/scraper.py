@@ -5,10 +5,13 @@ Web Media Scraper - 核心爬虫模块
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+from urllib.request import urlopen, Request
 
 try:
     from playwright.async_api import async_playwright
@@ -42,7 +45,7 @@ class MediaScraper:
         self.browser = None
         self.page = None
 
-    async def _scrape_via_cdp_existing_page(self, url: str) -> Dict:
+    async def _scrape_via_cdp_existing_page(self, url: str, wait_seconds: int = 5, download_dir: str = None) -> Dict:
         """
         通过 CDP 直接操作已有页面（绕过 Cloudflare 等反爬验证）
 
@@ -87,8 +90,50 @@ class MediaScraper:
                             raise RuntimeError(f"CDP error: {resp['error']}")
                         return resp.get("result", {})
 
-            # 启用 Runtime 域
+            # 启用 Runtime 和 DOM 域
             await send_cmd("Runtime.enable")
+            await send_cmd("DOM.enable")
+
+            # 等待 DOM ready
+            await send_cmd("Runtime.evaluate", {
+                "expression": "new Promise(resolve => { if (document.readyState === 'complete') resolve(); else document.addEventListener('readystatechange', () => { if (document.readyState === 'complete') resolve(); }); })",
+                "awaitPromise": True,
+                "returnByValue": True
+            })
+
+            # 等待主接口/动态内容加载（每隔 500ms 检查页面内容是否显著增加）
+            sys.stderr.write(f"  ⏳ 等待页面内容加载（最多 {wait_seconds}s）...\n")
+            wait_result = await send_cmd("Runtime.evaluate", {
+                "expression": f"""
+                (() => {{
+                    let waited = 0;
+                    const maxWait = {wait_seconds * 1000};
+                    const interval = 500;
+                    let lastCount = 0;
+                    return new Promise(resolve => {{
+                        const check = setInterval(() => {{
+                            waited += interval;
+                            const imgs = document.querySelectorAll('img').length;
+                            const videos = document.querySelectorAll('video').length;
+                            const iframes = document.querySelectorAll('iframe').length;
+                            const total = imgs + videos + iframes;
+                            if (total > lastCount || waited >= maxWait) {{
+                                clearInterval(check);
+                                resolve({{imgs, videos, iframes, waited}});
+                            }}
+                            lastCount = total;
+                        }}, interval);
+                    }});
+                }})()
+                """,
+                "awaitPromise": True,
+                "returnByValue": True
+            })
+            wait_result_value = wait_result.get("result", {}).get("value", {})
+            sys.stderr.write(f"  ✓ 页面就绪: 图片={wait_result_value.get('imgs',0)} 视频={wait_result_value.get('videos',0)} iframe={wait_result_value.get('iframes',0)} 等待={wait_result_value.get('waited',0)}ms\n")
+
+            # 额外稳定等待
+            await asyncio.sleep(1)
 
             # 4. 提取图片
             result = await send_cmd("Runtime.evaluate", {
@@ -161,7 +206,34 @@ class MediaScraper:
                     "title": vid.get("title", "")
                 })
 
-        return {
+        # 7. 下载到本地
+        downloaded = {"images": [], "videos": []}
+        if download_dir:
+            sys.stderr.write("  📥 开始下载媒体文件...\n")
+            dl_dir = Path(download_dir)
+            dl_dir.mkdir(parents=True, exist_ok=True)
+
+            img_dir = dl_dir / "images"
+            vid_dir = dl_dir / "videos"
+            img_dir.mkdir(exist_ok=True)
+            vid_dir.mkdir(exist_ok=True)
+
+            for i, img in enumerate(images):
+                local_path = await self._download_file(img["src"], img_dir, f"img_{i:04d}")
+                if local_path:
+                    img["local_path"] = local_path
+                    downloaded["images"].append(local_path)
+
+            for i, vid in enumerate(videos):
+                if vid["type"] != "iframe":
+                    local_path = await self._download_file(vid["src"], vid_dir, f"video_{i:04d}")
+                    if local_path:
+                        vid["local_path"] = local_path
+                        downloaded["videos"].append(local_path)
+
+            sys.stderr.write(f"  ✓ 下载完成: {len(downloaded['images'])} 张图片, {len(downloaded['videos'])} 个视频\n")
+
+        result = {
             "url": url,
             "title": page_title,
             "images": images,
@@ -169,6 +241,38 @@ class MediaScraper:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "scraper": "cdp-direct"
         }
+        if download_dir:
+            result["download_dir"] = download_dir
+        return result
+
+    async def _download_file(self, url: str, dest_dir: Path, filename: str = None) -> Optional[str]:
+        """下载单个文件到本地，返回本地路径"""
+        try:
+            parsed = urlparse(url)
+            ext = Path(parsed.path).suffix or ".bin"
+            if not filename:
+                filename = Path(parsed.path).name or f"file_{datetime.now().timestamp()}"
+            local_path = dest_dir / f"{filename}{ext}"
+
+            # 使用 asyncio 线程池避免阻塞事件循环
+            loop = asyncio.get_event_loop()
+
+            def _download():
+                req = Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                })
+                with urlopen(req, timeout=30) as resp:
+                    data = resp.read()
+                with open(local_path, "wb") as f:
+                    f.write(data)
+                return local_path
+
+            await loop.run_in_executor(None, _download)
+            sys.stderr.write(f"    ✓ {local_path.name}\n")
+            return str(local_path)
+        except Exception as e:
+            sys.stderr.write(f"    ✗ {filename or url}: {e}\n")
+            return None
 
     async def scrape_with_playwright(self, url: str, browser_type: str = "chromium") -> Dict:
         """
@@ -476,7 +580,7 @@ class MediaScraper:
         finally:
             driver.quit()
 
-    async def scrape(self, url: str, method: str = "playwright") -> Dict:
+    async def scrape(self, url: str, method: str = "playwright", wait_seconds: int = 5, download_dir: str = None) -> Dict:
         """
         通用抓取方法
 
@@ -486,12 +590,14 @@ class MediaScraper:
               - cdp: 优先通过 CDP 操作已有页面（绕过 Cloudflare）
               - playwright: 使用 Playwright 启动浏览器
               - selenium: 使用 Selenium
+            wait_seconds: 页面加载后等待动态内容的时间（秒）
+            download_dir: 媒体文件下载目录，为 None 则不下载
 
         Returns:
             媒体资源数据字典
         """
         if method == "cdp":
-            return await self._scrape_via_cdp_existing_page(url)
+            return await self._scrape_via_cdp_existing_page(url, wait_seconds=wait_seconds, download_dir=download_dir)
         elif method == "playwright":
             return await self.scrape_with_playwright(url)
         elif method == "selenium":
