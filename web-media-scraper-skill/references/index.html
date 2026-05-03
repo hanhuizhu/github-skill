@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Media Scraper - 网页媒体抓取</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        /* 输入区域 */
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .input-section input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-section button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .input-section button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .input-section button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* 状态提示 */
+        .status {
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .status.loading {
+            display: block;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+
+        .status.success {
+            display: block;
+            background: #e8f5e9;
+            color: #388e3c;
+            border-left: 4px solid #388e3c;
+        }
+
+        .status.error {
+            display: block;
+            background: #ffebee;
+            color: #d32f2f;
+            border-left: 4px solid #d32f2f;
+        }
+
+        /* Tab 切换 */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #999;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-button:hover {
+            color: #667eea;
+        }
+
+        /* 统计信息 */
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            flex: 1;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .stat-count {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        /* 内容区域 */
+        .content {
+            min-height: 300px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 资源网格 */
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .resource-item {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .resource-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .resource-thumbnail {
+            width: 100%;
+            height: 150px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .resource-thumbnail img,
+        .resource-thumbnail video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .resource-icon {
+            font-size: 32px;
+        }
+
+        .resource-info {
+            padding: 12px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .resource-title {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 8px;
+            word-break: break-word;
+            flex: 1;
+        }
+
+        .resource-url {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 8px;
+            word-break: break-all;
+            font-family: monospace;
+            max-height: 40px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .resource-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-copy, .btn-open {
+            flex: 1;
+            padding: 6px;
+            font-size: 11px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-copy:hover, .btn-open:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* 空态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        /* 加载动画 */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .resource-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+
+            header h1 {
+                font-size: 20px;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .input-section {
+                flex-direction: column;
+            }
+
+            .stats {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 Web Media Scraper</h1>
+            <p>从任何网页自动提取所有图片和视频资源</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 输入区域 -->
+            <div class="input-section">
+                <input
+                    type="url"
+                    id="urlInput"
+                    placeholder="输入网页 URL (如 https://example.com)"
+                    value=""
+                >
+                <button id="scrapeBtn" onclick="handleScrape()">开始抓取</button>
+            </div>
+
+            <!-- 状态提示 -->
+            <div id="status" class="status"></div>
+
+            <!-- Tab 切换 -->
+            <div class="tabs">
+                <button class="tab-button active" onclick="switchTab('images')">
+                    🖼️ 图片 <span id="imageCount">(0)</span>
+                </button>
+                <button class="tab-button" onclick="switchTab('videos')">
+                    🎬 视频 <span id="videoCount">(0)</span>
+                </button>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="stats" style="display: none;" id="statsContainer">
+                <div class="stat-item">
+                    <div class="stat-label">总图片</div>
+                    <div class="stat-count" id="totalImages">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">总视频</div>
+                    <div class="stat-count" id="totalVideos">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">页面标题</div>
+                    <div class="stat-label" id="pageTitle" style="color: #333; font-size: 13px; font-weight: 600;">-</div>
+                </div>
+            </div>
+
+            <!-- 内容区域 -->
+            <div class="content">
+                <!-- 图片 Tab -->
+                <div id="images" class="tab-content active">
+                    <div class="empty-state" id="imagesEmpty">
+                        <p>输入 URL 并点击「开始抓取」</p>
+                    </div>
+                    <div class="resource-grid" id="imagesGrid"></div>
+                </div>
+
+                <!-- 视频 Tab -->
+                <div id="videos" class="tab-content">
+                    <div class="empty-state" id="videosEmpty">
+                        <p>输入 URL 并点击「开始抓取」</p>
+                    </div>
+                    <div class="resource-grid" id="videosGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let currentData = null;
+
+        /**
+         * 显示状态消息
+         */
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        /**
+         * 处理抓取按钮点击
+         */
+        async function handleScrape() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            const btn = document.getElementById('scrapeBtn');
+
+            // 验证输入
+            if (!url) {
+                showStatus('❌ 请输入 URL', 'error');
+                urlInput.focus();
+                return;
+            }
+
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                showStatus('❌ URL 必须以 http:// 或 https:// 开头', 'error');
+                return;
+            }
+
+            // 禁用按钮，显示加载
+            btn.disabled = true;
+            showStatus('⏳ 正在抓取中，请稍候...', 'loading');
+
+            try {
+                // 这里应该调用后端 API 来获取数据
+                // 为了演示，我们模拟一个延迟
+                const data = await fetchMediaData(url);
+
+                if (data.error) {
+                    showStatus(`❌ 抓取失败: ${data.error}`, 'error');
+                    return;
+                }
+
+                currentData = data;
+                renderData(data);
+                showStatus(`✅ 抓取成功! 找到 ${data.images.length} 张图片和 ${data.videos.length} 个视频`, 'success');
+
+            } catch (error) {
+                showStatus(`❌ 错误: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * 从后端获取媒体数据
+         * 这里应该连接到实际的后端 API
+         */
+        async function fetchMediaData(url) {
+            // 模拟后端调用
+            // 实际应该是: return await fetch('/api/scrape?url=' + encodeURIComponent(url)).then(r => r.json())
+
+            // 为了演示，返回模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        url: url,
+                        title: '示例页面',
+                        images: [
+                            { src: 'https://via.placeholder.com/200x150?text=Image+1', alt: 'Sample 1', title: '示例图片 1' },
+                            { src: 'https://via.placeholder.com/200x150?text=Image+2', alt: 'Sample 2', title: '示例图片 2' }
+                        ],
+                        videos: [
+                            { src: 'https://example.com/video1.mp4', type: 'video/mp4', title: '示例视频 1' }
+                        ]
+                    });
+                }, 2000);
+            });
+        }
+
+        /**
+         * 渲染抓取的数据
+         */
+        function renderData(data) {
+            // 更新统计信息
+            document.getElementById('totalImages').textContent = data.images.length;
+            document.getElementById('totalVideos').textContent = data.videos.length;
+            document.getElementById('imageCount').textContent = `(${data.images.length})`;
+            document.getElementById('videoCount').textContent = `(${data.videos.length})`;
+            document.getElementById('pageTitle').textContent = data.title || '-';
+            document.getElementById('statsContainer').style.display = 'flex';
+
+            // 渲染图片
+            const imagesGrid = document.getElementById('imagesGrid');
+            imagesGrid.innerHTML = '';
+            if (data.images.length > 0) {
+                document.getElementById('imagesEmpty').style.display = 'none';
+                data.images.forEach(img => {
+                    imagesGrid.appendChild(createImageItem(img));
+                });
+            } else {
+                document.getElementById('imagesEmpty').style.display = 'block';
+            }
+
+            // 渲染视频
+            const videosGrid = document.getElementById('videosGrid');
+            videosGrid.innerHTML = '';
+            if (data.videos.length > 0) {
+                document.getElementById('videosEmpty').style.display = 'none';
+                data.videos.forEach(video => {
+                    videosGrid.appendChild(createVideoItem(video));
+                });
+            } else {
+                document.getElementById('videosEmpty').style.display = 'block';
+            }
+        }
+
+        /**
+         * 创建图片资源卡片
+         */
+        function createImageItem(img) {
+            const item = document.createElement('div');
+            item.className = 'resource-item';
+            item.innerHTML = `
+                <div class="resource-thumbnail">
+                    <img src="${escapeHtml(img.src)}" alt="${escapeHtml(img.alt)}" onerror="this.parentElement.innerHTML='<div class=\\'resource-icon\\'>🖼️</div>'">
+                </div>
+                <div class="resource-info">
+                    <div class="resource-title" title="${escapeHtml(img.title || img.alt)}">${escapeHtml(img.title || img.alt || '无标题')}</div>
+                    <div class="resource-url" title="${escapeHtml(img.src)}">${escapeHtml(img.src)}</div>
+                    <div class="resource-actions">
+                        <button class="btn-copy" onclick="copyToClipboard('${escapeHtml(img.src)}')">📋 复制</button>
+                        <button class="btn-open" onclick="openInNewTab('${escapeHtml(img.src)}')">🔗 打开</button>
+                    </div>
+                </div>
+            `;
+            return item;
+        }
+
+        /**
+         * 创建视频资源卡片
+         */
+        function createVideoItem(video) {
+            const item = document.createElement('div');
+            item.className = 'resource-item';
+            item.innerHTML = `
+                <div class="resource-thumbnail">
+                    <div class="resource-icon">🎬</div>
+                </div>
+                <div class="resource-info">
+                    <div class="resource-title" title="${escapeHtml(video.title)}">${escapeHtml(video.title || '无标题')}</div>
+                    <div class="resource-url" title="${escapeHtml(video.src)}">${escapeHtml(video.src)}</div>
+                    <div class="resource-actions">
+                        <button class="btn-copy" onclick="copyToClipboard('${escapeHtml(video.src)}')">📋 复制</button>
+                        <button class="btn-open" onclick="openInNewTab('${escapeHtml(video.src)}')">🔗 打开</button>
+                    </div>
+                </div>
+            `;
+            return item;
+        }
+
+        /**
+         * Tab 切换
+         */
+        function switchTab(tab) {
+            // 切换按钮状态
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.tab-button').classList.add('active');
+
+            // 切换内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tab).classList.add('active');
+        }
+
+        /**
+         * 复制到剪贴板
+         */
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('✅ 已复制到剪贴板', 'success');
+                setTimeout(() => {
+                    document.getElementById('status').style.display = 'none';
+                }, 2000);
+            });
+        }
+
+        /**
+         * 在新标签页打开
+         */
+        function openInNewTab(url) {
+            window.open(url, '_blank');
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 回车键快速抓取
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleScrape();
+            }
+        });
+    </script>
+</body>
+</html>

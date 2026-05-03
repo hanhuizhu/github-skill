@@ -43,6 +43,39 @@ HTML 一键发布工具：内联 CSS/JS → 发布到公网 → 返回 URL。
 
 ---
 
+## web-media-scraper-skill
+
+无头浏览器网页媒体抓取工具，通过 Playwright 或 Selenium 从任何网页自动提取所有图片和视频资源。
+
+| 功能 | 脚本 |
+|------|------|
+| 核心爬虫 | `web-media-scraper-skill/scripts/src/scraper.py` |
+| 主程序入口 | `web-media-scraper-skill/scripts/run.py` |
+| 前端展示 | `web-media-scraper-skill/references/index.html` |
+
+**使用方式**：
+```bash
+# 方式 A：Playwright（推荐）
+python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --method playwright
+
+# 方式 B：Selenium
+python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --method selenium
+```
+
+**前置条件**：
+- Python 3.9+
+- Playwright (`pip install playwright`) 或 Selenium (`pip install selenium`)
+- 系统已安装 Chrome / Chromium（不会自动下载，Playwright 可连接已有浏览器）
+
+**输出**：`data.json` 包含图片和视频列表（URL、alt、title 等）
+
+---
+
 ## 迭代规则
 
 功能变更时同步更新对应 Skill 的 `SKILL.md`、`scripts/`、本文件。
+
+**web-media-scraper 的业务迭代**：
+- 后端调整（爬虫逻辑、输出格式）→ 同步 `skill/SKILL.md` 中的数据契约说明
+- 前端调整（UI/UX、交互）→ 同步 `skill/references/index.html`
+- 依赖或部署变化 → 同步本文件的「前置条件」与「使用方式」
