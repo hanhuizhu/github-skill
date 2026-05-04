@@ -32,6 +32,27 @@ bash github-skill/scripts/gh_auth.sh --token ghp_xxx
 
 ---
 
+## static-assets-upload-skill
+
+将任意静态资源文件（图片、视频、文档等）上传到 GitHub 仓库，自动 Base64 编码并通过 GitHub Contents API 提交，返回可直接访问的 raw URL。
+
+```bash
+# 上传文件到仓库默认路径（uploads/）
+bash static-assets-upload-skill/scripts/upload-static.sh --file ./screenshot.png --repo hanhuizhu/image-uploads
+
+# 指定分支和目录
+bash static-assets-upload-skill/scripts/upload-static.sh --file ./video.mp4 --repo hanhuizhu/assets --branch gh-pages --path videos/
+```
+
+| 功能 | 说明 |
+|------|------|
+| 输入 | 任意本地文件（自动 Base64 编码） |
+| 输出 | `https://raw.githubusercontent.com/...` 可公开访问 URL |
+| 目标 | GitHub 仓库任意路径/分支 |
+| 认证 | `GITHUB_TOKEN` 或 `~/.github_skill_token` |
+
+---
+
 ## html-publish-skill
 
 将本地 HTML（含外部 CSS/JS）打包成单文件并发布到公网，返回可访问 URL。
@@ -104,6 +125,7 @@ python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --tim
 |-------|------|
 | **github-skill** | `bash` `git` `curl` `gh` CLI |
 | **html-publish-skill** | `bash` `python3` `curl` |
+| **static-assets-upload-skill** | `bash` `curl` `openssl` |
 | **web-media-scraper-skill** | `python3.9+` `playwright` 或 `selenium` |
 
 **系统要求**：

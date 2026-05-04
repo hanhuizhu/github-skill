@@ -25,6 +25,20 @@ GitHub 仓库管理助手，通过对话完成常见 GitHub 操作。
 
 ---
 
+## static-assets-upload
+
+静态资源上传助手：将任意本地文件上传到 GitHub 仓库，通过 Contents API 提交并返回 raw URL。
+
+| 你来说 | 脚本 |
+|--------|------|
+| 上传这张图片/视频/文件 | `static-assets-upload-skill/scripts/upload-static.sh` |
+| 指定分支 gh-pages | `--branch gh-pages` |
+| 放到 videos/ 目录 | `--path videos/` |
+
+**前置**：`GITHUB_TOKEN` 或 `~/.github_skill_token`
+
+---
+
 ## html-publish
 
 HTML 一键发布工具：内联 CSS/JS → 发布到公网 → 返回 URL。
