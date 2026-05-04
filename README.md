@@ -4,6 +4,19 @@
 
 ---
 
+## 流程设计
+
+```
+[1] GitHub 代码管理        → github-skill（创建/克隆/推送/分支/PR）
+[2] Agent 前端研发          → Claude + AI 驱动开发
+[3] 静态资源部署            → static-assets-upload-skill（图片/文件）
+                           → html-publish-skill（页面）
+```
+
+项目开发与部署流水线：**代码托管于 GitHub → AI 辅助前端开发 → 静态资源自动发布**，全流程通过对话驱动，无需离开终端。
+
+---
+
 ## github-skill
 
 通过对话协助完成 GitHub 仓库管理，无需记忆 git 命令。
