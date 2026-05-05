@@ -85,6 +85,32 @@ python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --met
 
 ---
 
+## xhs-scraper-skill
+
+小红书 Explore 帖子抓取工具。通过 Playwright 自动抓取探索页帖子标题、作者、封面图、链接。
+
+| 功能 | 脚本 |
+|------|------|
+| 自动抓取（CDP/独立） | `xhs-scraper-skill/scripts/scrape_xhs.py` |
+| 指定分类 tab | `xhs-scraper-skill/scripts/scrape_xhs.py --tabs 推荐,穿搭,美食` |
+
+**使用方式**：
+```bash
+# CDP 模式（连接系统 Chrome，推荐）
+python3 xhs-scraper-skill/scripts/scrape_xhs.py --mode cdp -o posts.json
+
+# 独立模式（headless）
+python3 xhs-scraper-skill/scripts/scrape_xhs.py --mode standalone -o posts.json
+
+# 指定 tab 和数量
+python3 xhs-scraper-skill/scripts/scrape_xhs.py --tabs 推荐,穿搭,旅行 --max-posts 50
+```
+
+**前置条件**：`pip install playwright`
+**输出**：包含 `title`、`author`、`cover`、`link` 的 JSON 数组
+
+---
+
 ## cookie-extract-skill
 
 从本地 Chrome 提取已登录网站的 cookie，绕过重新登录。提供 Python 模块供其他脚本 import。
