@@ -276,7 +276,7 @@ class MediaScraper:
 
     async def scrape_with_playwright(self, url: str, browser_type: str = "chromium") -> Dict:
         """
-        使用 Playwright 抓取媒体资源
+        使用 Playwright 抓取媒体资源（默认复用用户浏览器 cookie）
 
         Args:
             url: 目标网页 URL
@@ -289,17 +289,38 @@ class MediaScraper:
             raise ImportError("Playwright 未安装，请运行: pip install playwright")
 
         async with async_playwright() as p:
-            # 优先连接系统浏览器
+            # Step 1: 从用户现有浏览器偷 cookie（如果 Chrome 开了 --remote-debugging-port=9222）
+            cookies = []
             try:
-                # 尝试连接已运行的浏览器
-                browser = await p.chromium.connect_over_cdp("http://localhost:9222")
-            except:
-                # 启动新浏览器（优先使用系统已安装的）
-                browser_launcher = getattr(p, browser_type)
-                browser = await browser_launcher.launch(headless=self.headless)
+                cdp_browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+                for ctx in cdp_browser.contexts:
+                    try:
+                        ctx_cookies = await ctx.cookies()
+                        cookies.extend(ctx_cookies)
+                    except:
+                        continue
+                await cdp_browser.close()  # 安全：只断开 CDP 连接，不会关闭用户浏览器
+                if cookies:
+                    print(f"🍪 已从浏览器获取 {len(cookies)} 个 cookie")
+                else:
+                    print("ℹ️  浏览器无 cookie，将以无状态模式抓取")
+            except Exception:
+                print("ℹ️  未检测到已运行的 Chrome（localhost:9222），将以无 cookie 模式抓取")
+
+            # Step 2: 始终启动新的无头浏览器（干净环境+注入 cookie）
+            browser_launcher = getattr(p, browser_type)
+            browser = await browser_launcher.launch(headless=self.headless)
 
             try:
-                page = await browser.new_page()
+                # Step 3: 创建独立上下文并注入 cookie
+                context = await browser.new_context()
+                if cookies:
+                    try:
+                        await context.add_cookies(cookies)
+                    except Exception:
+                        pass  # 部分 cookie 可能过期或域名不匹配，不影响整体抓取
+
+                page = await context.new_page()
                 await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout)
 
                 # 等待 JS 执行完成
@@ -323,7 +344,6 @@ class MediaScraper:
                     "scraper": "playwright"
                 }
             finally:
-                await page.close()
                 await browser.close()
 
     async def _extract_images(self, page, base_url: str) -> List[Dict]:

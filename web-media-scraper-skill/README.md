@@ -1,6 +1,6 @@
 # Web Media Scraper Skill
 
-🌐 从任何网页自动提取图片和视频资源的工具。
+🌐 从任何网页自动提取图片和视频资源的工具（默认复用浏览器 Cookie）。
 
 ## 快速开始
 
@@ -106,10 +106,7 @@ export HTTP_PROXY="http://proxy.example.com:8080"
 A: 许多现代网站使用 JavaScript 动态加载内容，只用 HTTP 请求无法获取完整数据。无头浏览器会执行 JavaScript，确保获取渲染后的完整内容。
 
 **Q: 如何处理需要登录的网站？**  
-A: 目前暂不支持自动登录。可以：
-- 使用公开页面
-- 手工获取 Cookie 后传入（需扩展代码）
-- 使用代理或 VPN
+A: **自动支持**。如果本地 Chrome 以 `--remote-debugging-port=9222` 启动，默认的 Playwright 模式会自动提取浏览器 cookie 注入无头会话，复用登录态。无需额外配置。
 
 **Q: 超时了怎么办？**  
 A: 尝试增加 `--timeout` 参数值，如 `--timeout 60000`（60秒）。
