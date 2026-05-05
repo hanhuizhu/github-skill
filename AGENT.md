@@ -85,6 +85,29 @@ python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --met
 
 ---
 
+## cookie-extract-skill
+
+从本地 Chrome 提取已登录网站的 cookie，绕过重新登录。提供 Python 模块供其他脚本 import。
+
+| 功能 | 脚本 |
+|------|------|
+| 提取 cookie | `cookie-extract-skill/scripts/extract_cookies.py <domain>` |
+| 提取 cookie (HTTP header) | `cookie-extract-skill/scripts/extract_cookies.py <domain> --header` |
+| 验证登录态 | `cookie-extract-skill/scripts/extract_cookies.py <domain> --verify` |
+| Python 模块 | `cookie-extract-skill/scripts/lib/chrome_cookies.py` |
+
+**在其他脚本中 import**：
+```python
+from lib.chrome_cookies import get_cookies, create_client
+
+cookies = get_cookies('x.com')
+client = create_client('x.com', proxy='socks5://127.0.0.1:7897')
+```
+
+**前置条件**：`pip install browser-cookie3 httpx`
+
+---
+
 ## 迭代规则
 
 功能变更时同步更新对应 Skill 的 `SKILL.md`、`scripts/`、本文件。

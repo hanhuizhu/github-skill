@@ -139,6 +139,7 @@ python3 web-media-scraper-skill/scripts/run.py --url "https://example.com" --tim
 | **github-skill** | `bash` `git` `curl` `gh` CLI |
 | **html-publish-skill** | `bash` `python3` `curl` |
 | **static-assets-upload-skill** | `bash` `curl` `openssl` |
+| **cookie-extract-skill** | `python3.9+` `browser-cookie3` `httpx` |
 | **web-media-scraper-skill** | `python3.9+` `playwright` 或 `selenium` |
 
 **系统要求**：
