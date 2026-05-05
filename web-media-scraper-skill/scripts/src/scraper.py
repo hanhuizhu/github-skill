@@ -1,6 +1,6 @@
 """
 Web Media Scraper - 核心爬虫模块
-使用无头浏览器抓取页面中的所有图片和视频资源
+使用无头浏览器抓取页面中的图片、视频和关键文本
 """
 
 import asyncio
@@ -181,7 +181,10 @@ class MediaScraper:
             })
             video_data = result.get("result", {}).get("value", [])
 
-        # 6. 组装结果
+            # 6. 提取关键文本
+            text_data = await self._extract_text_cdp(send_cmd)
+
+        # 7. 组装结果
         seen = set()
         images = []
         for img in img_data:
@@ -238,6 +241,7 @@ class MediaScraper:
             "title": page_title,
             "images": images,
             "videos": videos,
+            "text": text_data,
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "scraper": "cdp-direct"
         }
@@ -332,6 +336,9 @@ class MediaScraper:
                 # 提取视频
                 videos = await self._extract_videos(page, url)
 
+                # 提取关键文本
+                text = await self._extract_text(page)
+
                 # 获取页面标题
                 title = await page.title()
 
@@ -340,6 +347,7 @@ class MediaScraper:
                     "title": title,
                     "images": images,
                     "videos": videos,
+                    "text": text,
                     "timestamp": datetime.utcnow().isoformat() + "Z",
                     "scraper": "playwright"
                 }
@@ -503,6 +511,146 @@ class MediaScraper:
 
         return unique_videos
 
+    async def _extract_text(self, page) -> Dict:
+        """提取页面的关键文本内容（标题、段落、链接、Meta）"""
+        text_data = await page.evaluate("""
+            () => {
+                const result = {};
+
+                // 1. 标题层级
+                const headings = [];
+                document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+                    const text = h.textContent.trim();
+                    if (text) {
+                        headings.push({level: h.tagName.toLowerCase(), text: text.slice(0, 500)});
+                    }
+                });
+                result.headings = headings;
+
+                // 2. 段落正文
+                const paragraphs = [];
+                document.querySelectorAll('p').forEach(p => {
+                    const text = p.textContent.trim();
+                    if (text) {
+                        paragraphs.push(text.slice(0, 2000));
+                    }
+                });
+                result.paragraphs = paragraphs;
+
+                // 3. 超链接（去重）
+                const seen = new Set();
+                const links = [];
+                document.querySelectorAll('a[href]').forEach(a => {
+                    const href = a.href;
+                    const text = a.textContent.trim();
+                    if (href && text && !seen.has(href)) {
+                        seen.add(href);
+                        links.push({href: href, text: text.slice(0, 200), title: a.title || ''});
+                    }
+                });
+                result.links = links;
+
+                // 4. Meta 信息
+                const mdesc = document.querySelector('meta[name="description"]');
+                const mkeys = document.querySelector('meta[name="keywords"]');
+                result.meta = {
+                    description: mdesc ? (mdesc.getAttribute('content') || '') : '',
+                    keywords: mkeys ? (mkeys.getAttribute('content') || '') : ''
+                };
+
+                return result;
+            }
+        """)
+        return text_data
+
+    async def _extract_text_cdp(self, send_cmd) -> Dict:
+        """通过 CDP 执行 JS 提取文本"""
+        result = await send_cmd("Runtime.evaluate", {
+            "expression": """
+                (() => {
+                    const headings = [];
+                    document.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+                        const text = h.textContent.trim();
+                        if (text) headings.push({level: h.tagName.toLowerCase(), text: text.slice(0, 500)});
+                    });
+                    const paragraphs = [];
+                    document.querySelectorAll('p').forEach(p => {
+                        const text = p.textContent.trim();
+                        if (text) paragraphs.push(text.slice(0, 2000));
+                    });
+                    const seen = new Set();
+                    const links = [];
+                    document.querySelectorAll('a[href]').forEach(a => {
+                        const href = a.href;
+                        const text = a.textContent.trim();
+                        if (href && text && !seen.has(href)) { seen.add(href); links.push({href, text: text.slice(0, 200), title: a.title || ''}); }
+                    });
+                    const mdesc = document.querySelector('meta[name="description"]');
+                    const mkeys = document.querySelector('meta[name="keywords"]');
+                    return {
+                        headings, paragraphs, links,
+                        meta: {
+                            description: mdesc ? (mdesc.getAttribute('content') || '') : '',
+                            keywords: mkeys ? (mkeys.getAttribute('content') || '') : ''
+                        }
+                    };
+                })()
+            """,
+            "returnByValue": True
+        })
+        return result.get("result", {}).get("value", {})
+
+    def _extract_text_selenium(self, driver) -> Dict:
+        """通过 Selenium 提取文本"""
+        import re
+
+        text_data = {"headings": [], "paragraphs": [], "links": [], "meta": {}}
+
+        try:
+            for tag in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+                for elem in driver.find_elements(By.TAG_NAME, tag):
+                    txt = elem.text.strip()
+                    if txt:
+                        text_data["headings"].append({"level": tag, "text": txt[:500]})
+        except:
+            pass
+
+        try:
+            for elem in driver.find_elements(By.TAG_NAME, "p"):
+                txt = elem.text.strip()
+                if txt:
+                    text_data["paragraphs"].append(txt[:2000])
+        except:
+            pass
+
+        try:
+            seen = set()
+            for elem in driver.find_elements(By.TAG_NAME, "a"):
+                href = elem.get_attribute("href")
+                txt = elem.text.strip()
+                if href and txt and href not in seen:
+                    seen.add(href)
+                    text_data["links"].append({
+                        "href": href,
+                        "text": txt[:200],
+                        "title": elem.get_attribute("title") or ""
+                    })
+        except:
+            pass
+
+        try:
+            for name in ["description", "keywords"]:
+                from selenium.webdriver.common.by import By as By2
+                meta = driver.find_elements(By2.XPATH, f'//meta[@name="{name}"]')
+                if meta:
+                    text_data["meta"][name] = meta[0].get_attribute("content") or ""
+                else:
+                    text_data["meta"][name] = ""
+        except:
+            text_data["meta"] = {"description": "", "keywords": ""}
+
+        return text_data
+
     def scrape_with_selenium(self, url: str) -> Dict:
         """
         使用 Selenium 抓取媒体资源（同步版本）
@@ -588,11 +736,15 @@ class MediaScraper:
             # 获取页面标题
             title = driver.title
 
+            # 提取关键文本
+            text = self._extract_text_selenium(driver)
+
             return {
                 "url": url,
                 "title": title,
                 "images": images,
                 "videos": videos,
+                "text": text,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "scraper": "selenium"
             }

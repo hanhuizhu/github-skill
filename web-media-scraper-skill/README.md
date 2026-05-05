@@ -77,6 +77,20 @@ skill/
       "title": "视频标题"
     }
   ],
+  "text": {
+    "headings": [
+      {"level": "h1", "text": "一级标题"},
+      {"level": "h2", "text": "二级标题"}
+    ],
+    "paragraphs": ["段落文本..."],
+    "links": [
+      {"href": "https://...", "text": "链接文字", "title": ""}
+    ],
+    "meta": {
+      "description": "页面描述",
+      "keywords": "关键词"
+    }
+  },
   "timestamp": "2024-01-01T00:00:00Z",
   "scraper": "playwright"
 }

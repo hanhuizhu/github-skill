@@ -13,7 +13,7 @@ description: >-
 ## 模块界定
 
 ### 后端（数据生成）
-- **职责**：接收 URL → 启动无头浏览器 → 加载页面 → 解析 DOM 提取媒体元素 → 生成 JSON
+- **职责**：接收 URL → 启动无头浏览器 → 加载页面 → 解析 DOM 提取媒体元素 + 关键文本 → 生成 JSON
 - **输入**：用户提供的 URL（必须）
 - **输出**：`data.json`，包含：
   ```json
@@ -28,6 +28,20 @@ description: >-
       {"src": "视频 URL", "type": "video/mp4", "title": "视频标题"},
       ...
     ],
+    "text": {
+      "headings": [
+        {"level": "h1", "text": "一级标题"},
+        {"level": "h2", "text": "二级标题"}
+      ],
+      "paragraphs": ["段落文本..."],
+      "links": [
+        {"href": "链接 URL", "text": "链接文字", "title": ""}
+      ],
+      "meta": {
+        "description": "页面描述",
+        "keywords": "关键词"
+      }
+    },
     "timestamp": "2024-01-01T00:00:00Z"
   }
   ```
@@ -51,7 +65,7 @@ python3 skill/scripts/run.py --url "https://example.com"
 - 若有，自动提取 cookie 注入到新的无头浏览器（**复用登录态**）
 - 若无，以无 cookie 模式启动干净无头浏览器
 - 加载页面、等待 JS 执行完成
-- 提取所有 `<img>` 和 `<video>` 标签的 URL 及属性
+- 提取所有 `<img>` 和 `<video>` 标签的 URL 及属性，以及页面标题、段落、链接等关键文本
 - 保存为 `data.json`
 
 ### 第 2 步：数据上传与展示
